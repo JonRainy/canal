@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.alibaba.otter.canal.instance.core.CanalInstance;
 import com.alibaba.otter.canal.instance.core.CanalMQConfig;
+import com.alibaba.otter.canal.protocol.SequenceEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,7 +43,7 @@ public class CanalInstanceWithSpring extends AbstractCanalInstance {
         this.eventParser = eventParser;
     }
 
-    public void setEventSink(CanalEventSink<List<CanalEntry.Entry>> eventSink) {
+    public void setEventSink(CanalEventSink<List<SequenceEntry>> eventSink) {
         this.eventSink = eventSink;
     }
 
