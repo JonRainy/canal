@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.alibaba.otter.canal.protocol.SequenceEntry;
 import org.springframework.util.Assert;
 
 import com.alibaba.otter.canal.common.AbstractCanalLifeCycle;
@@ -22,7 +23,7 @@ public class EventTransactionBuffer extends AbstractCanalLifeCycle {
     private static final long        INIT_SQEUENCE = -1;
     private int                      bufferSize    = 1024;
     private int                      indexMask;
-    private CanalEntry.Entry[]       entries;
+    private SequenceEntry[]       entries;
 
     private AtomicLong               putSequence   = new AtomicLong(INIT_SQEUENCE); // 代表当前put操作最后一次写操作发生的位置
     private AtomicLong               flushSequence = new AtomicLong(INIT_SQEUENCE); // 代表满足flush条件后最后一次数据flush的时间
@@ -45,7 +46,7 @@ public class EventTransactionBuffer extends AbstractCanalLifeCycle {
 
         Assert.notNull(flushCallback, "flush callback is null!");
         indexMask = bufferSize - 1;
-        entries = new CanalEntry.Entry[bufferSize];
+        entries = new SequenceEntry[bufferSize];
     }
 
     public void stop() throws CanalStoreException {
@@ -56,14 +57,14 @@ public class EventTransactionBuffer extends AbstractCanalLifeCycle {
         super.stop();
     }
 
-    public void add(List<CanalEntry.Entry> entrys) throws InterruptedException {
-        for (CanalEntry.Entry entry : entrys) {
+    public void add(List<SequenceEntry> entrys) throws InterruptedException {
+        for (SequenceEntry entry : entrys) {
             add(entry);
         }
     }
 
-    public void add(CanalEntry.Entry entry) throws InterruptedException {
-        switch (entry.getEntryType()) {
+    public void add(SequenceEntry entry) throws InterruptedException {
+        switch (entry.getEntry().getEntryType()) {
             case TRANSACTIONBEGIN:
                 flush();// 刷新上一次的数据
                 put(entry);
@@ -75,7 +76,7 @@ public class EventTransactionBuffer extends AbstractCanalLifeCycle {
             case ROWDATA:
                 put(entry);
                 // 针对非DML的数据，直接输出，不进行buffer控制
-                EventType eventType = entry.getHeader().getEventType();
+                EventType eventType = entry.getEntry().getHeader().getEventType();
                 if (eventType != null && !isDml(eventType)) {
                     flush();
                 }
@@ -95,7 +96,7 @@ public class EventTransactionBuffer extends AbstractCanalLifeCycle {
         flushSequence.set(INIT_SQEUENCE);
     }
 
-    private void put(CanalEntry.Entry data) throws InterruptedException {
+    private void put(SequenceEntry data) throws InterruptedException {
         // 首先检查是否有空位
         if (checkFreeSlotAt(putSequence.get() + 1)) {
             long current = putSequence.get();
@@ -115,7 +116,7 @@ public class EventTransactionBuffer extends AbstractCanalLifeCycle {
         long end = this.putSequence.get();
 
         if (start <= end) {
-            List<CanalEntry.Entry> transaction = new ArrayList<CanalEntry.Entry>();
+            List<SequenceEntry> transaction = new ArrayList<>();
             for (long next = start; next <= end; next++) {
                 transaction.add(this.entries[getIndex(next)]);
             }
@@ -163,7 +164,7 @@ public class EventTransactionBuffer extends AbstractCanalLifeCycle {
      */
     public static interface TransactionFlushCallback {
 
-        public void flush(List<CanalEntry.Entry> transaction) throws InterruptedException;
+        public void flush(List<SequenceEntry> transaction) throws InterruptedException;
     }
 
 }

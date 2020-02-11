@@ -2,6 +2,7 @@ package com.alibaba.otter.canal.instance.core;
 
 import java.util.List;
 
+import com.alibaba.otter.canal.protocol.SequenceEntry;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +36,7 @@ public class AbstractCanalInstance extends AbstractCanalLifeCycle implements Can
     protected CanalEventStore<Event>                 eventStore;                                                   // 有序队列
 
     protected CanalEventParser                       eventParser;                                                  // 解析对应的数据信息
-    protected CanalEventSink<List<CanalEntry.Entry>> eventSink;                                                    // 链接parse和store的桥接器
+    protected CanalEventSink<List<SequenceEntry>> eventSink;                                                    // 链接parse和store的桥接器
     protected CanalMetaManager                       metaManager;                                                  // 消费信息管理器
     protected CanalAlarmHandler                      alarmHandler;                                                 // alarm报警机制
     protected CanalMQConfig                          mqConfig;                                                     // mq的配置

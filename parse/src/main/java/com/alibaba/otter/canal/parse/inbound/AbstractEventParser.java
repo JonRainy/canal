@@ -10,6 +10,7 @@ import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.alibaba.otter.canal.protocol.SequenceEntry;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.commons.lang.math.RandomUtils;
@@ -51,7 +52,8 @@ public abstract class AbstractEventParser<EVENT> extends AbstractCanalLifeCycle 
     protected final Logger                           logger                     = LoggerFactory.getLogger(this.getClass());
 
     protected CanalLogPositionManager                logPositionManager         = null;
-    protected CanalEventSink<List<CanalEntry.Entry>> eventSink                  = null;
+    protected CanalEventSink<List<SequenceEntry>> eventSink                  = null;
+
     protected CanalEventFilter                       eventFilter                = null;
     protected CanalEventFilter                       eventBlackFilter           = null;
 
@@ -136,7 +138,7 @@ public abstract class AbstractEventParser<EVENT> extends AbstractCanalLifeCycle 
         // 初始化一下
         transactionBuffer = new EventTransactionBuffer(new TransactionFlushCallback() {
 
-            public void flush(List<CanalEntry.Entry> transaction) throws InterruptedException {
+            public void flush(List<SequenceEntry> transaction) throws InterruptedException {
                 boolean successed = consumeTheEventAndProfilingIfNecessary(transaction);
                 if (!running) {
                     return;
@@ -222,7 +224,7 @@ public abstract class AbstractEventParser<EVENT> extends AbstractCanalLifeCycle 
 
                                     if (entry != null) {
                                         exception = null; // 有正常数据流过，清空exception
-                                        transactionBuffer.add(entry);
+                                        transactionBuffer.add(new SequenceEntry(entry, -1));
                                         // 记录一下对应的positions
                                         this.lastPosition = buildLastPosition(entry);
                                         // 记录一下最后一次有数据的时间
@@ -387,7 +389,7 @@ public abstract class AbstractEventParser<EVENT> extends AbstractCanalLifeCycle 
         }
     }
 
-    protected boolean consumeTheEventAndProfilingIfNecessary(List<CanalEntry.Entry> entrys) throws CanalSinkException,
+    protected boolean consumeTheEventAndProfilingIfNecessary(List<SequenceEntry> entrys) throws CanalSinkException,
                                                                                            InterruptedException {
         long startTs = -1;
         boolean enabled = getProfilingEnabled();
@@ -429,9 +431,9 @@ public abstract class AbstractEventParser<EVENT> extends AbstractCanalLifeCycle 
         return profilingEnabled.get();
     }
 
-    protected LogPosition buildLastTransactionPosition(List<CanalEntry.Entry> entries) { // 初始化一下
+    protected LogPosition buildLastTransactionPosition(List<SequenceEntry> entries) { // 初始化一下
         for (int i = entries.size() - 1; i > 0; i--) {
-            CanalEntry.Entry entry = entries.get(i);
+            CanalEntry.Entry entry = entries.get(i).getEntry();
             if (entry.getEntryType() == CanalEntry.EntryType.TRANSACTIONEND) {// 尽量记录一个事务做为position
                 return buildLastPosition(entry);
             }
@@ -516,7 +518,7 @@ public abstract class AbstractEventParser<EVENT> extends AbstractCanalLifeCycle 
                             entryBuilder.setEntryType(EntryType.HEARTBEAT);
                             Entry entry = entryBuilder.build();
                             // 提交到sink中，目前不会提交到store中，会在sink中进行忽略
-                            consumeTheEventAndProfilingIfNecessary(Arrays.asList(entry));
+                            consumeTheEventAndProfilingIfNecessary(Arrays.asList(new SequenceEntry(entry, -1)));
                         }
                     }
 
@@ -590,7 +592,7 @@ public abstract class AbstractEventParser<EVENT> extends AbstractCanalLifeCycle 
         return processingInterval;
     }
 
-    public void setEventSink(CanalEventSink<List<CanalEntry.Entry>> eventSink) {
+    public void setEventSink(CanalEventSink<List<SequenceEntry>> eventSink) {
         this.eventSink = eventSink;
     }
 

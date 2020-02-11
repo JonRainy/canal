@@ -16,6 +16,8 @@ import com.alibaba.otter.canal.parse.inbound.MultiStageCoprocessor;
 import com.alibaba.otter.canal.parse.inbound.TableMeta;
 import com.alibaba.otter.canal.parse.inbound.mysql.dbsync.LogEventConvert;
 import com.alibaba.otter.canal.protocol.CanalEntry;
+import com.alibaba.otter.canal.protocol.SequenceEntry;
+import com.alibaba.otter.canal.store.memory.SFMemoryEventStoreWithBuffer;
 import com.lmax.disruptor.BatchEventProcessor;
 import com.lmax.disruptor.BlockingWaitStrategy;
 import com.lmax.disruptor.EventFactory;
@@ -71,6 +73,17 @@ public class MysqlMultiStageCoprocessor extends AbstractCanalLifeCycle implement
     private BatchEventProcessor<MessageEvent> simpleParserStage;
     private BatchEventProcessor<MessageEvent> sinkStoreStage;
     private LogContext                        logContext;
+
+
+    private SFMemoryEventStoreWithBuffer sfMemoryEventStoreWithBuffer;
+
+    public SFMemoryEventStoreWithBuffer getSfMemoryEventStoreWithBuffer() {
+        return sfMemoryEventStoreWithBuffer;
+    }
+
+    public void setSfMemoryEventStoreWithBuffer(SFMemoryEventStoreWithBuffer sfMemoryEventStoreWithBuffer) {
+        this.sfMemoryEventStoreWithBuffer = sfMemoryEventStoreWithBuffer;
+    }
 
     public MysqlMultiStageCoprocessor(int ringBufferSize, int parserThreadCount, LogEventConvert logEventConvert,
                                       EventTransactionBuffer transactionBuffer, String destination){
@@ -202,6 +215,9 @@ public class MysqlMultiStageCoprocessor extends AbstractCanalLifeCycle implement
                 throw exception;
             }
             try {
+                if (getSfMemoryEventStoreWithBuffer().getMaxSequence() < disruptorMsgBuffer.getCursor() + 1) {
+                    throw InsufficientCapacityException.INSTANCE;
+                }
                 long next = disruptorMsgBuffer.tryNext();
                 MessageEvent data = disruptorMsgBuffer.get(next);
                 if (buffer != null) {
@@ -354,7 +370,7 @@ public class MysqlMultiStageCoprocessor extends AbstractCanalLifeCycle implement
         public void onEvent(MessageEvent event, long sequence, boolean endOfBatch) throws Exception {
             try {
                 if (event.getEntry() != null) {
-                    transactionBuffer.add(event.getEntry());
+                    transactionBuffer.add(new SequenceEntry(event.getEntry(), sequence));
                 }
 
                 LogEvent logEvent = event.getEvent();

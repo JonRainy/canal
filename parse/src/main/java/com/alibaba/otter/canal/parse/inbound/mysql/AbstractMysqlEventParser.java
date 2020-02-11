@@ -16,6 +16,9 @@ import com.alibaba.otter.canal.parse.inbound.mysql.tsdb.DefaultTableMetaTSDBFact
 import com.alibaba.otter.canal.parse.inbound.mysql.tsdb.TableMetaTSDB;
 import com.alibaba.otter.canal.parse.inbound.mysql.tsdb.TableMetaTSDBFactory;
 import com.alibaba.otter.canal.protocol.position.EntryPosition;
+import com.alibaba.otter.canal.sink.entry.EntryEventSink;
+import com.alibaba.otter.canal.store.CanalEventStore;
+import com.alibaba.otter.canal.store.memory.SFMemoryEventStoreWithBuffer;
 
 public abstract class AbstractMysqlEventParser extends AbstractEventParser {
 
@@ -174,6 +177,13 @@ public abstract class AbstractMysqlEventParser extends AbstractEventParser {
             (LogEventConvert) binlogParser,
             transactionBuffer,
             destination);
+
+        if (eventSink instanceof EntryEventSink) {
+            CanalEventStore store = ((EntryEventSink) eventSink).getEventStore();
+            if (store instanceof SFMemoryEventStoreWithBuffer) {
+                mysqlMultiStageCoprocessor.setSfMemoryEventStoreWithBuffer((SFMemoryEventStoreWithBuffer) store);
+            }
+        }
         mysqlMultiStageCoprocessor.setEventsPublishBlockingTime(eventsPublishBlockingTime);
         return mysqlMultiStageCoprocessor;
     }
