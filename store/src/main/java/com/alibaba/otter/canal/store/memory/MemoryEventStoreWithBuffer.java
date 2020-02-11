@@ -41,7 +41,7 @@ public class MemoryEventStoreWithBuffer extends AbstractCanalStoreScavenge imple
     private int               bufferSize    = 16 * 1024;
     private int               bufferMemUnit = 1024;                                      // memsize的单位，默认为1kb大小
     private int               indexMask;
-    private Event[]           entries;
+    protected Event[]           entries;
 
     // 记录下put/get/ack操作的三个下标
     private AtomicLong        putSequence   = new AtomicLong(INIT_SEQUENCE);             // 代表当前put操作最后一次写操作发生的位置
@@ -185,7 +185,7 @@ public class MemoryEventStoreWithBuffer extends AbstractCanalStoreScavenge imple
     /**
      * 执行具体的put操作
      */
-    private void doPut(List<Event> data) {
+    protected void doPut(List<Event> data) {
         long current = putSequence.get();
         long end = current + data.size();
 
@@ -267,7 +267,7 @@ public class MemoryEventStoreWithBuffer extends AbstractCanalStoreScavenge imple
         }
     }
 
-    private Events<Event> doGet(Position start, int batchSize) throws CanalStoreException {
+    protected Events<Event> doGet(Position start, int batchSize) throws CanalStoreException {
         LogPosition startPosition = (LogPosition) start;
 
         long current = getSequence.get();
@@ -514,7 +514,7 @@ public class MemoryEventStoreWithBuffer extends AbstractCanalStoreScavenge imple
 
     // =================== helper method =================
 
-    private long getMinimumGetOrAck() {
+    protected long getMinimumGetOrAck() {
         long get = getSequence.get();
         long ack = ackSequence.get();
         return ack <= get ? ack : get;
@@ -523,7 +523,7 @@ public class MemoryEventStoreWithBuffer extends AbstractCanalStoreScavenge imple
     /**
      * 查询是否有空位
      */
-    private boolean checkFreeSlotAt(final long sequence) {
+    protected boolean checkFreeSlotAt(final long sequence) {
         final long wrapPoint = sequence - bufferSize;
         final long minPoint = getMinimumGetOrAck();
         if (wrapPoint > minPoint) { // 刚好追上一轮
@@ -546,7 +546,7 @@ public class MemoryEventStoreWithBuffer extends AbstractCanalStoreScavenge imple
     /**
      * 检查是否存在需要get的数据,并且数量>=batchSize
      */
-    private boolean checkUnGetSlotAt(LogPosition startPosition, int batchSize) {
+    protected boolean checkUnGetSlotAt(LogPosition startPosition, int batchSize) {
         if (batchMode.isItemSize()) {
             long current = getSequence.get();
             long maxAbleSequence = putSequence.get();

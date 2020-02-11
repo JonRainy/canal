@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
+import com.alibaba.otter.canal.protocol.SequenceEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.Assert;
@@ -29,7 +30,7 @@ import com.alibaba.otter.canal.store.model.Event;
  * @author jianghang 2012-7-4 下午03:23:16
  * @version 1.0.0
  */
-public class EntryEventSink extends AbstractCanalEventSink<List<CanalEntry.Entry>> implements CanalEventSink<List<CanalEntry.Entry>> {
+public class EntryEventSink extends AbstractCanalEventSink<List<SequenceEntry>> implements CanalEventSink<List<SequenceEntry>> {
 
     private static final Logger    logger                        = LoggerFactory.getLogger(EntryEventSink.class);
     private static final int       maxFullTimes                  = 10;
@@ -80,25 +81,25 @@ public class EntryEventSink extends AbstractCanalEventSink<List<CanalEntry.Entry
         return false;
     }
 
-    public boolean sink(List<CanalEntry.Entry> entrys, InetSocketAddress remoteAddress, String destination)
+    public boolean sink(List<SequenceEntry> entrys, InetSocketAddress remoteAddress, String destination)
                                                                                                            throws CanalSinkException,
                                                                                                            InterruptedException {
         return sinkData(entrys, remoteAddress);
     }
 
-    private boolean sinkData(List<CanalEntry.Entry> entrys, InetSocketAddress remoteAddress)
+    private boolean sinkData(List<SequenceEntry> entrys, InetSocketAddress remoteAddress)
                                                                                             throws InterruptedException {
         boolean hasRowData = false;
         boolean hasHeartBeat = false;
         List<Event> events = new ArrayList<Event>();
-        for (CanalEntry.Entry entry : entrys) {
+        for (SequenceEntry entry : entrys) {
             if (!doFilter(entry)) {
                 continue;
             }
 
             if (filterTransactionEntry
-                && (entry.getEntryType() == EntryType.TRANSACTIONBEGIN || entry.getEntryType() == EntryType.TRANSACTIONEND)) {
-                long currentTimestamp = entry.getHeader().getExecuteTime();
+                && (entry.getEntry().getEntryType() == EntryType.TRANSACTIONBEGIN || entry.getEntry().getEntryType() == EntryType.TRANSACTIONEND)) {
+                long currentTimestamp = entry.getEntry().getHeader().getExecuteTime();
                 // 基于一定的策略控制，放过空的事务头和尾，便于及时更新数据库位点，表明工作正常
                 if (lastTransactionCount.incrementAndGet() <= emptyTransctionThresold
                     && Math.abs(currentTimestamp - lastTransactionTimestamp) <= emptyTransactionInterval) {
@@ -109,9 +110,10 @@ public class EntryEventSink extends AbstractCanalEventSink<List<CanalEntry.Entry
                 }
             }
 
-            hasRowData |= (entry.getEntryType() == EntryType.ROWDATA);
-            hasHeartBeat |= (entry.getEntryType() == EntryType.HEARTBEAT);
-            Event event = new Event(new LogIdentity(remoteAddress, -1L), entry, raw);
+            hasRowData |= (entry.getEntry().getEntryType() == EntryType.ROWDATA);
+            hasHeartBeat |= (entry.getEntry().getEntryType() == EntryType.HEARTBEAT);
+            Event event = new Event(new LogIdentity(remoteAddress, -1L), entry.getEntry(), raw);
+            event.setSequence(entry.getSequence());
             events.add(event);
         }
 
@@ -136,15 +138,15 @@ public class EntryEventSink extends AbstractCanalEventSink<List<CanalEntry.Entry
         }
     }
 
-    protected boolean doFilter(CanalEntry.Entry entry) {
-        if (filter != null && entry.getEntryType() == EntryType.ROWDATA) {
+    protected boolean doFilter(SequenceEntry entry) {
+        if (filter != null && entry.getEntry().getEntryType() == EntryType.ROWDATA) {
             String name = getSchemaNameAndTableName(entry);
             boolean need = filter.filter(name);
             if (!need) {
                 logger.debug("filter name[{}] entry : {}:{}",
                     name,
-                    entry.getHeader().getLogfileName(),
-                    entry.getHeader().getLogfileOffset());
+                    entry.getEntry().getHeader().getLogfileName(),
+                    entry.getEntry().getHeader().getLogfileOffset());
             }
 
             return need;
@@ -199,12 +201,16 @@ public class EntryEventSink extends AbstractCanalEventSink<List<CanalEntry.Entry
 
     }
 
-    private String getSchemaNameAndTableName(CanalEntry.Entry entry) {
-        return entry.getHeader().getSchemaName() + "." + entry.getHeader().getTableName();
+    private String getSchemaNameAndTableName(SequenceEntry entry) {
+        return entry.getEntry().getHeader().getSchemaName() + "." + entry.getEntry().getHeader().getTableName();
     }
 
     public void setEventStore(CanalEventStore<Event> eventStore) {
         this.eventStore = eventStore;
+    }
+
+    public CanalEventStore<Event> getEventStore() {
+        return eventStore;
     }
 
     public void setFilterTransactionEntry(boolean filterTransactionEntry) {

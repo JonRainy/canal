@@ -34,6 +34,8 @@ public class Event implements Serializable {
     private long              rawLength;
     private int               rowsCount;
 
+    private long              sequence;
+
     // ==== https://github.com/alibaba/canal/issues/1019
     private CanalEntry.Entry  entry;
 
@@ -74,6 +76,14 @@ public class Event implements Serializable {
             // 按照6倍的event length预估
             this.rawLength = entry.getHeader().getEventLength() * 6;
         }
+    }
+
+    public long getSequence() {
+        return sequence;
+    }
+
+    public void setSequence(long sequenc) {
+        this.sequence = sequenc;
     }
 
     public LogIdentity getLogIdentity() {
